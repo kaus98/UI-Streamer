@@ -17,6 +17,16 @@ const els = {
   pageRefresh: document.getElementById("pageRefresh"),
   detailRewind: document.getElementById("detailRewind"),
   detailForward: document.getElementById("detailForward"),
+  playerPlay: document.getElementById("playerPlay"),
+  playerPause: document.getElementById("playerPause"),
+  playerFullscreen: document.getElementById("playerFullscreen"),
+  progressBar: document.getElementById("progressBar"),
+  currentTime: document.getElementById("currentTime"),
+  duration: document.getElementById("duration"),
+  volumeBar: document.getElementById("volumeBar"),
+  qualityChip: document.getElementById("qualityChip"),
+  focusTitle: document.getElementById("focusTitle"),
+  focusMeta: document.getElementById("focusMeta"),
 };
 
 if (!mediaId) {
@@ -62,7 +72,6 @@ async function loadDetail() {
 
 function setupVideoPlayer(id, progress) {
   els.detailVideo.src = `/api/stream/${id}`;
-
   els.detailVideo.onloadedmetadata = () => {
     if (progress?.currentTime && els.detailVideo.duration) {
       const resumeTime = Math.min(progress.currentTime, els.detailVideo.duration - 1);
@@ -71,6 +80,7 @@ function setupVideoPlayer(id, progress) {
     if (autoplay) {
       els.detailVideo.play().catch(() => {});
     }
+    syncProgressUI();
   };
 }
 
@@ -87,16 +97,31 @@ async function saveDetailProgress() {
 }
 
 els.detailVideo.addEventListener("timeupdate", () => {
+  syncProgressUI();
   if (progressThrottle) return;
   progressThrottle = setTimeout(async () => {
     await saveDetailProgress();
     progressThrottle = null;
-  }, 3000);
+  }, 2000);
 });
 
 els.detailVideo.addEventListener("ended", async () => {
   await saveDetailProgress();
 });
+
+els.progressBar.addEventListener("input", () => {
+  const percent = Number(els.progressBar.value);
+  if (els.detailVideo.duration) {
+    els.detailVideo.currentTime = (percent / 100) * els.detailVideo.duration;
+  }
+});
+
+els.volumeBar.addEventListener("input", () => {
+  els.detailVideo.volume = Number(els.volumeBar.value);
+});
+
+els.playerPlay.addEventListener("click", () => els.detailVideo.play().catch(() => {}));
+els.playerPause.addEventListener("click", () => els.detailVideo.pause());
 
 els.detailRewind.addEventListener("click", () => {
   if (!Number.isFinite(els.detailVideo.currentTime)) return;
@@ -108,6 +133,34 @@ els.detailForward.addEventListener("click", () => {
   const duration = Number.isFinite(els.detailVideo.duration) ? els.detailVideo.duration : els.detailVideo.currentTime + 10;
   els.detailVideo.currentTime = Math.min(duration, els.detailVideo.currentTime + 10);
 });
+
+els.playerFullscreen.addEventListener("click", () => {
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    els.detailVideo.requestFullscreen().catch(() => {});
+  }
+});
+
+function syncProgressUI() {
+  const current = els.detailVideo.currentTime || 0;
+  const total = els.detailVideo.duration || 0;
+  els.currentTime.textContent = formatTime(current);
+  els.duration.textContent = total ? formatTime(total) : "0:00";
+  els.progressBar.value = total ? (current / total) * 100 : 0;
+  els.focusTitle.textContent = els.detailTitle.textContent;
+  els.focusMeta.textContent = `${els.detailSubtitle.textContent} • ${Math.max(0, Math.floor((current / total) * 100) || 0)}%`;
+  els.qualityChip.textContent = total ? (total > 3600 ? "HD" : "SD") : "Auto";
+}
+
+function formatTime(seconds) {
+  if (!Number.isFinite(seconds)) return "0:00";
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60)
+    .toString()
+    .padStart(2, "0");
+  return `${mins}:${secs}`;
+}
 
 els.pagePlay.addEventListener("click", () => {
   els.detailVideo.play().catch(() => {});

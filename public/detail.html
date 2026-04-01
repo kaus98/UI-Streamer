@@ -34,10 +34,31 @@
       </section>
 
       <section class="detail-player">
-        <video id="detailVideo" controls preload="metadata"></video>
-        <div class="player-controls">
-          <button id="detailRewind" class="ghost">-10s</button>
-          <button id="detailForward" class="ghost">+10s</button>
+        <div class="video-surface">
+          <video id="detailVideo" preload="metadata"></video>
+          <div class="video-focus" aria-hidden="true">
+            <p class="focus-title" id="focusTitle"></p>
+            <p class="focus-meta" id="focusMeta"></p>
+          </div>
+        </div>
+        <div class="controls-panel">
+          <div class="progress-row">
+            <span id="currentTime">0:00</span>
+            <input id="progressBar" type="range" min="0" max="100" value="0" step="0.1" />
+            <span id="duration">0:00</span>
+          </div>
+          <div class="action-row">
+            <button id="playerPlay" class="primary">Play</button>
+            <button id="playerPause" class="ghost">Pause</button>
+            <button id="detailRewind" class="ghost">-10s</button>
+            <button id="detailForward" class="ghost">+10s</button>
+            <div class="volume-group">
+              <label for="volumeBar">Volume</label>
+              <input id="volumeBar" type="range" min="0" max="1" step="0.05" value="1" />
+            </div>
+            <button id="playerFullscreen" class="ghost">Fullscreen</button>
+            <div class="quality-chip" id="qualityChip">Auto</div>
+          </div>
         </div>
       </section>
 
