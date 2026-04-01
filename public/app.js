@@ -1,0 +1,214 @@
+const state = {
+  items: [],
+  progress: {},
+  movies: [],
+  series: [],
+  nextUp: null,
+};
+
+const els = {
+  searchInput: document.getElementById("searchInput"),
+  refreshBtn: document.getElementById("refreshBtn"),
+  addPathBtn: document.getElementById("addPathBtn"),
+  uploadBtn: document.getElementById("uploadBtn"),
+  folderUpload: document.getElementById("folderUpload"),
+  pathInput: document.getElementById("pathInput"),
+  statusText: document.getElementById("statusText"),
+  movieRow: document.getElementById("movieRow"),
+  seriesRow: document.getElementById("seriesRow"),
+  movieStats: document.getElementById("movieStats"),
+  seriesStats: document.getElementById("seriesStats"),
+  heroTitle: document.getElementById("heroTitle"),
+  heroMeta: document.getElementById("heroMeta"),
+  heroPoster: document.getElementById("heroPoster"),
+  playNextBtn: document.getElementById("playNextBtn"),
+  openLibraryBtn: document.getElementById("openLibraryBtn"),
+  cardTemplate: document.getElementById("cardTemplate"),
+};
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Request failed");
+  }
+  return data;
+}
+
+async function uploadFolder() {
+  const files = Array.from(els.folderUpload.files || []);
+  if (!files.length) {
+    els.statusText.textContent = "Select a local folder first.";
+    return;
+  }
+
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("mediaFiles", file, file.webkitRelativePath || file.name);
+  }
+
+  els.statusText.textContent = "Uploading selected files to server library...";
+
+  try {
+    const response = await fetch("/api/library/upload", { method: "POST", body: formData });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Upload failed");
+    }
+
+    els.statusText.textContent = `Uploaded and added ${data.added} files.`;
+    await loadLibrary(els.searchInput.value.trim());
+  } catch (error) {
+    els.statusText.textContent = error.message;
+  }
+}
+
+function formatPercent(v) {
+  return `${Math.round(v || 0)}% watched`;
+}
+
+function renderHero(data) {
+  const pick = data.lastWatched?.item || data.nextUp || state.items[0];
+  if (!pick) {
+    els.heroTitle.textContent = "Your local cinema, instantly.";
+    els.heroMeta.textContent = "Add a folder path to begin.";
+    els.heroPoster.style.backgroundImage = "none";
+    return;
+  }
+
+  const p = state.progress[pick.id];
+  els.heroTitle.textContent = pick.title;
+  els.heroMeta.textContent = [
+    pick.type === "series" && pick.season && pick.episode ? `S${pick.season} E${pick.episode}` : pick.type,
+    pick.year || "Year n/a",
+    p ? formatPercent(p.percent) : "Not started",
+  ]
+    .filter(Boolean)
+    .join(" • ");
+
+  els.heroPoster.style.backgroundImage = pick.metadata.poster ? `url('${pick.metadata.poster}')` : "none";
+}
+
+function goToDetail(id, autoPlay = false) {
+  const query = new URLSearchParams({ id, autoplay: autoPlay ? "1" : "0" });
+  window.location.href = `/detail.html?${query.toString()}`;
+}
+
+function renderCard(item) {
+  const node = els.cardTemplate.content.firstElementChild.cloneNode(true);
+  const progress = state.progress[item.id];
+
+  const thumb = node.querySelector(".thumb");
+  if (item.metadata.poster) {
+    thumb.style.backgroundImage = `url('${item.metadata.poster}')`;
+  }
+
+  node.querySelector("h3").textContent = item.title;
+  node.querySelector(".meta").textContent = [
+    item.type === "series" && item.season && item.episode ? `S${item.season}E${item.episode}` : item.type,
+    item.year || "year n/a",
+    progress ? formatPercent(progress.percent) : "new",
+  ].join(" • ");
+
+  node.querySelector(".progress-line span").style.width = `${Math.min(100, progress?.percent || 0)}%`;
+
+  node.querySelector(".play").addEventListener("click", () => goToDetail(item.id, true));
+  node.querySelector(".details").addEventListener("click", () => goToDetail(item.id));
+  node.querySelector(".refresh").addEventListener("click", () => refreshMetadata(item.id));
+
+  return node;
+}
+
+function renderLibrary() {
+  els.movieRow.innerHTML = "";
+  els.seriesRow.innerHTML = "";
+
+  for (const item of state.movies) {
+    els.movieRow.appendChild(renderCard(item));
+  }
+
+  for (const item of state.series) {
+    els.seriesRow.appendChild(renderCard(item));
+  }
+}
+
+async function loadLibrary(query = "") {
+  const data = await fetchJson(`/api/library?q=${encodeURIComponent(query)}`);
+  state.items = data.items;
+  state.progress = data.progress;
+  state.nextUp = data.nextUp;
+  state.movies = data.items.filter((i) => i.type === "movie");
+  state.series = data.items.filter((i) => i.type === "series");
+
+  renderStats(data.summary);
+  renderHero(data);
+  renderLibrary();
+}
+
+async function addPath() {
+  const value = els.pathInput.value.trim();
+  if (!value) {
+    els.statusText.textContent = "Please enter a folder path.";
+    return;
+  }
+
+  els.statusText.textContent = "Scanning folder and scraping IMDb metadata...";
+
+  try {
+    const result = await fetchJson("/api/library/add-path", {
+      method: "POST",
+      body: JSON.stringify({ path: value }),
+    });
+    els.statusText.textContent = `Added ${result.added} new files.`;
+    await loadLibrary(els.searchInput.value.trim());
+  } catch (error) {
+    els.statusText.textContent = error.message;
+  }
+}
+
+async function refreshMetadata(id) {
+  try {
+    await fetchJson(`/api/library/${id}/refresh-metadata`, { method: "POST" });
+    await loadLibrary(els.searchInput.value.trim());
+  } catch (error) {
+    els.statusText.textContent = `Metadata update failed: ${error.message}`;
+  }
+}
+
+function wireActions() {
+  els.addPathBtn.addEventListener("click", addPath);
+  els.uploadBtn.addEventListener("click", uploadFolder);
+  els.refreshBtn.addEventListener("click", () => loadLibrary(els.searchInput.value.trim()));
+
+  els.searchInput.addEventListener("input", () => {
+    loadLibrary(els.searchInput.value.trim()).catch((error) => {
+      els.statusText.textContent = error.message;
+    });
+  });
+
+  els.playNextBtn.addEventListener("click", () => {
+    if (state.nextUp?.id) {
+      goToDetail(state.nextUp.id, true);
+    }
+  });
+
+  els.openLibraryBtn.addEventListener("click", () => {
+    document.getElementById("movieRow").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
+async function init() {
+  wireActions();
+
+  try {
+    await loadLibrary();
+  } catch (error) {
+    els.statusText.textContent = error.message;
+  }
+}
+
+init();

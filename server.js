@@ -1,0 +1,553 @@
+const express = require("express");
+const fs = require("fs");
+const fsp = fs.promises;
+const path = require("path");
+const axios = require("axios");
+const cheerio = require("cheerio");
+const multer = require("multer");
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+const DATA_DIR = path.join(__dirname, "data");
+const LIBRARY_FILE = path.join(DATA_DIR, "library.json");
+const IMDB_CACHE_FILE = path.join(DATA_DIR, "imdb-cache.json");
+const PUBLIC_DIR = path.join(__dirname, "public");
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+
+const VIDEO_EXTENSIONS = new Set([".mp4", ".mkv", ".webm", ".mov", ".avi", ".m4v"]);
+
+app.use(express.json({ limit: "2mb" }));
+app.use(express.static(PUBLIC_DIR));
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_, __, cb) => cb(null, UPLOADS_DIR),
+    filename: (_, file, cb) => {
+      const stamp = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_");
+      cb(null, `${stamp}-${safeName}`);
+    },
+  }),
+});
+
+async function ensureStorage() {
+  await fsp.mkdir(DATA_DIR, { recursive: true });
+  await fsp.mkdir(UPLOADS_DIR, { recursive: true });
+  try {
+    await fsp.access(LIBRARY_FILE);
+  } catch {
+    const seed = { items: [], progress: {}, lastUpdated: null };
+    await fsp.writeFile(LIBRARY_FILE, JSON.stringify(seed, null, 2), "utf8");
+  }
+  try {
+    await fsp.access(IMDB_CACHE_FILE);
+  } catch {
+    await fsp.writeFile(IMDB_CACHE_FILE, JSON.stringify({}), "utf8");
+  }
+}
+
+async function enrichLibraryItemWithImdb(item) {
+  try {
+    const imdbMeta = await scrapeImdbMeta(item.title, item.year);
+    if (imdbMeta) item.metadata = imdbMeta;
+  } catch {
+    // Ignore scraping failures; item remains usable.
+  }
+}
+
+async function readLibrary() {
+  const raw = await fsp.readFile(LIBRARY_FILE, "utf8");
+  return JSON.parse(raw);
+}
+
+async function writeLibrary(data) {
+  data.lastUpdated = new Date().toISOString();
+  await fsp.writeFile(LIBRARY_FILE, JSON.stringify(data, null, 2), "utf8");
+}
+
+async function readImdbCache() {
+  try {
+    const raw = await fsp.readFile(IMDB_CACHE_FILE, "utf8");
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
+}
+
+async function writeImdbCache(cache) {
+  await fsp.writeFile(IMDB_CACHE_FILE, JSON.stringify(cache, null, 2), "utf8");
+}
+
+function makeCacheKey(title, year) {
+  return `${title.toLowerCase().trim()}|${year || ""}`;
+}
+
+function toId(input) {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+function parseMediaName(fileName) {
+  const name = path.parse(fileName).name;
+  const normalized = name.replace(/[._]/g, " ").replace(/\s+/g, " ").trim();
+
+  const seasonEpisodeMatch = normalized.match(/s(\d{1,2})e(\d{1,2})/i);
+  const yearMatch = normalized.match(/(19\d{2}|20\d{2})/);
+
+  if (seasonEpisodeMatch) {
+    const season = Number(seasonEpisodeMatch[1]);
+    const episode = Number(seasonEpisodeMatch[2]);
+    const title = normalized
+      .replace(/s\d{1,2}e\d{1,2}.*/i, "")
+      .replace(/\b(19\d{2}|20\d{2})\b/, "")
+      .trim();
+
+    return {
+      inferredTitle: title || normalized,
+      type: "series",
+      season,
+      episode,
+      year: yearMatch ? Number(yearMatch[1]) : null,
+    };
+  }
+
+  const title = normalized.replace(/\b(19\d{2}|20\d{2})\b/, "").trim();
+
+  return {
+    inferredTitle: title || normalized,
+    type: "movie",
+    season: null,
+    episode: null,
+    year: yearMatch ? Number(yearMatch[1]) : null,
+  };
+}
+
+async function walkMediaFiles(dirPath) {
+  const entries = await fsp.readdir(dirPath, { withFileTypes: true });
+  const files = [];
+
+  for (const entry of entries) {
+    const fullPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...(await walkMediaFiles(fullPath)));
+      continue;
+    }
+
+    if (VIDEO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) {
+      files.push(fullPath);
+    }
+  }
+
+  return files;
+}
+
+function buildLibraryItem(filePath, rootPath) {
+  const stats = fs.statSync(filePath);
+  const fileName = path.basename(filePath);
+  const parsed = parseMediaName(fileName);
+  const relativePath = path.relative(rootPath, filePath);
+
+  const baseId = `${parsed.inferredTitle}-${parsed.year || "na"}-${relativePath}`;
+
+  return {
+    id: toId(baseId),
+    title: parsed.inferredTitle,
+    type: parsed.type,
+    season: parsed.season,
+    episode: parsed.episode,
+    year: parsed.year,
+    duration: null,
+    fileName,
+    filePath,
+    relativePath,
+    fileSize: stats.size,
+    addedAt: new Date().toISOString(),
+    metadata: {
+      source: null,
+      imdbId: null,
+      imdbUrl: null,
+      poster: null,
+      rating: null,
+      genres: [],
+      plot: null,
+      runtime: null,
+      cast: [],
+      reviews: [],
+    },
+  };
+}
+
+function safeJsonParseLD(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+function pickReviewText($reviewNode) {
+  const body = $reviewNode.find(".ipc-html-content-inner-div").first().text().trim();
+  if (body) return body;
+  return $reviewNode.find("div.text.show-more__control").first().text().trim();
+}
+
+async function scrapeImdbMeta(title, year) {
+  const key = makeCacheKey(title, year);
+  const cache = await readImdbCache();
+  if (cache[key]) {
+    return cache[key];
+  }
+
+  const query = `${title} ${year || ""}`.trim();
+  const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(query)}&s=tt&ttype=ft`;
+
+  const searchResponse = await axios.get(searchUrl, {
+    headers: { "User-Agent": "Mozilla/5.0" },
+    timeout: 10000,
+  });
+
+  const $search = cheerio.load(searchResponse.data);
+  const firstResultHref =
+    $search("a.ipc-metadata-list-summary-item__t").first().attr("href") ||
+    $search("a[href^='/title/tt']").first().attr("href");
+
+  if (!firstResultHref) {
+    return null;
+  }
+
+  const titlePath = firstResultHref.split("?")[0];
+  const imdbUrl = `https://www.imdb.com${titlePath}`;
+  const reviewsUrl = `${imdbUrl}reviews`;
+
+  const [titleRes, reviewsRes] = await Promise.all([
+    axios.get(imdbUrl, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 }),
+    axios.get(reviewsUrl, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 }).catch(() => ({ data: "" })),
+  ]);
+
+  const $title = cheerio.load(titleRes.data);
+  const ldNode = $title("script[type='application/ld+json']").first().html();
+  const ld = ldNode ? safeJsonParseLD(ldNode) : null;
+
+  const imdbIdMatch = titlePath.match(/tt\d+/);
+  const imdbId = imdbIdMatch ? imdbIdMatch[0] : null;
+
+  const genres = ld?.genre ? (Array.isArray(ld.genre) ? ld.genre : [ld.genre]) : [];
+  const cast = Array.isArray(ld?.actor) ? ld.actor.map((a) => a?.name).filter(Boolean).slice(0, 8) : [];
+
+  const reviews = [];
+  if (reviewsRes.data) {
+    const $reviews = cheerio.load(reviewsRes.data);
+    $reviews(".review-container, .ipc-list-card--border-line").slice(0, 4).each((_, el) => {
+      const $node = $reviews(el);
+      const author = $node.find(".display-name-link a, .ipc-link").first().text().trim();
+      const content = pickReviewText($node);
+      const titleText = $node.find("a.title, h3").first().text().trim();
+      if (content) {
+        reviews.push({
+          author: author || "IMDb user",
+          title: titleText || "Review",
+          content,
+        });
+      }
+    });
+  }
+
+  const meta = {
+    source: "imdb",
+    imdbId,
+    imdbUrl,
+    poster: ld?.image || null,
+    rating: ld?.aggregateRating?.ratingValue || null,
+    genres,
+    plot: ld?.description || null,
+    runtime: ld?.duration || null,
+    cast,
+    reviews,
+  };
+
+  cache[key] = meta;
+  await writeImdbCache(cache);
+  return meta;
+}
+
+function getLastWatched(data) {
+  const entries = Object.entries(data.progress)
+    .map(([id, value]) => ({ id, ...value }))
+    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+  return entries[0] || null;
+}
+
+function computeNextUp(data) {
+  const progressEntries = Object.entries(data.progress).map(([id, p]) => ({ id, ...p }));
+  const partiallyWatched = progressEntries
+    .filter((p) => p.percent > 5 && p.percent < 95)
+    .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+
+  if (partiallyWatched.length) {
+    return data.items.find((item) => item.id === partiallyWatched[0].id) || null;
+  }
+
+  const seriesItems = data.items
+    .filter((item) => item.type === "series")
+    .sort((a, b) => {
+      if (a.title !== b.title) return a.title.localeCompare(b.title);
+      if ((a.season || 0) !== (b.season || 0)) return (a.season || 0) - (b.season || 0);
+      return (a.episode || 0) - (b.episode || 0);
+    });
+
+  for (const episode of seriesItems) {
+    const p = data.progress[episode.id];
+    if (!p || p.percent < 95) {
+      return episode;
+    }
+  }
+
+  return data.items[0] || null;
+}
+
+app.get("/api/library", async (req, res) => {
+  try {
+    const data = await readLibrary();
+    const q = (req.query.q || "").toString().trim().toLowerCase();
+
+    let items = data.items;
+    if (q) {
+      items = items.filter((item) => {
+        const hay = `${item.title} ${item.type} ${item.year || ""} ${(item.metadata.genres || []).join(" ")}`.toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    const byId = Object.fromEntries(data.items.map((item) => [item.id, item]));
+    const lastWatched = getLastWatched(data);
+    const nextUp = computeNextUp(data);
+
+    res.json({
+      items,
+      progress: data.progress,
+      summary: {
+        total: items.length,
+        movies: items.filter((i) => i.type === "movie").length,
+        series: items.filter((i) => i.type === "series").length,
+      },
+      lastWatched: lastWatched ? { ...lastWatched, item: byId[lastWatched.id] || null } : null,
+      nextUp,
+    });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to read library", detail: error.message });
+  }
+});
+
+app.post("/api/library/upload", upload.array("mediaFiles", 300), async (req, res) => {
+  try {
+    const files = req.files || [];
+    if (!files.length) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    const mediaFiles = files.filter((file) => VIDEO_EXTENSIONS.has(path.extname(file.originalname).toLowerCase()));
+    if (!mediaFiles.length) {
+      return res.status(400).json({ error: "No supported media files in upload" });
+    }
+
+    const data = await readLibrary();
+    const existingByPath = new Set(data.items.map((item) => item.filePath));
+    const added = [];
+
+    for (const file of mediaFiles) {
+      if (existingByPath.has(file.path)) continue;
+      const item = buildLibraryItem(file.path, UPLOADS_DIR);
+      item.relativePath = file.originalname;
+      item.source = "upload";
+      await enrichLibraryItemWithImdb(item);
+      data.items.push(item);
+      added.push(item);
+    }
+
+    await writeLibrary(data);
+    res.json({ added: added.length, items: added });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to upload media", detail: error.message });
+  }
+});
+
+app.post("/api/library/add-path", async (req, res) => {
+  try {
+    const inputPath = (req.body.path || "").toString().trim();
+    if (!inputPath) {
+      return res.status(400).json({ error: "Path is required" });
+    }
+
+    const resolvedPath = path.resolve(inputPath);
+    const stats = await fsp.stat(resolvedPath).catch(() => null);
+    if (!stats || !stats.isDirectory()) {
+      return res.status(400).json({ error: "Path must be an existing directory" });
+    }
+
+    const mediaFiles = await walkMediaFiles(resolvedPath);
+    if (!mediaFiles.length) {
+      return res.status(400).json({ error: "No supported media files found" });
+    }
+
+    const data = await readLibrary();
+    const existingByPath = new Set(data.items.map((item) => item.filePath));
+
+    const added = [];
+    for (const filePath of mediaFiles) {
+      if (existingByPath.has(filePath)) continue;
+      const item = buildLibraryItem(filePath, resolvedPath);
+      await enrichLibraryItemWithImdb(item);
+      data.items.push(item);
+      added.push(item);
+    }
+
+    await writeLibrary(data);
+    res.json({ added: added.length, items: added });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to add media path", detail: error.message });
+  }
+});
+
+app.post("/api/library/:id/refresh-metadata", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await readLibrary();
+    const item = data.items.find((x) => x.id === id);
+
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const imdbMeta = await scrapeImdbMeta(item.title, item.year);
+    if (!imdbMeta) {
+      return res.status(404).json({ error: "IMDb metadata not found" });
+    }
+
+    item.metadata = imdbMeta;
+    await writeLibrary(data);
+    res.json({ item });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to refresh metadata", detail: error.message });
+  }
+});
+
+app.get("/api/library/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await readLibrary();
+    const item = data.items.find((x) => x.id === id);
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const progress = data.progress[id] || null;
+    res.json({ item, progress });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to retrieve item", detail: error.message });
+  }
+});
+
+app.post("/api/progress/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentTime = Number(req.body.currentTime || 0);
+    const duration = Number(req.body.duration || 0);
+
+    if (!Number.isFinite(currentTime) || !Number.isFinite(duration)) {
+      return res.status(400).json({ error: "Invalid currentTime or duration" });
+    }
+
+    const data = await readLibrary();
+    const percent = duration > 0 ? Math.min(100, Math.max(0, (currentTime / duration) * 100)) : 0;
+
+    data.progress[id] = {
+      currentTime,
+      duration,
+      percent,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await writeLibrary(data);
+    res.json({ ok: true, progress: data.progress[id] });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to save progress", detail: error.message });
+  }
+});
+
+app.get("/api/stream/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await readLibrary();
+    const item = data.items.find((x) => x.id === id);
+
+    if (!item) {
+      return res.status(404).send("Media item not found");
+    }
+
+    const filePath = item.filePath;
+    const stat = await fsp.stat(filePath).catch(() => null);
+    if (!stat) {
+      return res.status(404).send("Media file not found on disk");
+    }
+
+    const fileSize = stat.size;
+    const range = req.headers.range;
+    const ext = path.extname(filePath).toLowerCase();
+
+    const contentTypeMap = {
+      ".mp4": "video/mp4",
+      ".webm": "video/webm",
+      ".mkv": "video/x-matroska",
+      ".mov": "video/quicktime",
+      ".avi": "video/x-msvideo",
+      ".m4v": "video/x-m4v",
+    };
+
+    const contentType = contentTypeMap[ext] || "application/octet-stream";
+
+    if (range) {
+      const [startRaw, endRaw] = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(startRaw, 10);
+      const end = endRaw ? parseInt(endRaw, 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": contentType,
+      });
+
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+      return;
+    }
+
+    res.writeHead(200, {
+      "Content-Length": fileSize,
+      "Content-Type": contentType,
+    });
+
+    fs.createReadStream(filePath).pipe(res);
+  } catch (error) {
+    res.status(500).send(`Streaming failed: ${error.message}`);
+  }
+});
+
+app.get("*", (_, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+});
+
+ensureStorage()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`UI Streamer running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Failed to start server:", error);
+    process.exit(1);
+  });

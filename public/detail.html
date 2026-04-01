@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI Streamer • Player</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body class="detail-page">
+    <header class="topbar">
+      <div class="brand">UI<span>Streamer</span></div>
+      <a class="ghost" href="/">Back to library</a>
+    </header>
+
+    <main class="detail-layout">
+      <section class="detail-metadata">
+        <div class="detail-poster" id="detailPoster"></div>
+        <div class="detail-info">
+          <p class="eyebrow" id="detailType"></p>
+          <h1 id="detailTitle"></h1>
+          <p class="meta" id="detailSubtitle"></p>
+          <div class="detail-actions">
+            <button id="pagePlay">Play</button>
+            <button id="pageRefresh" class="ghost">Update IMDb</button>
+          </div>
+          <p class="helper" id="detailPlot"></p>
+        </div>
+      </section>
+
+      <section class="detail-player">
+        <video id="detailVideo" controls preload="metadata"></video>
+        <div class="player-controls">
+          <button id="detailRewind" class="ghost">-10s</button>
+          <button id="detailForward" class="ghost">+10s</button>
+        </div>
+      </section>
+
+      <section class="detail-meta-grid">
+        <article>
+          <h3>Genres</h3>
+          <p id="detailGenres"></p>
+        </article>
+        <article>
+          <h3>Cast</h3>
+          <p id="detailCast"></p>
+        </article>
+        <article>
+          <h3>IMDb Rating</h3>
+          <p id="detailRating"></p>
+        </article>
+        <article>
+          <h3>Runtime</h3>
+          <p id="detailRuntime"></p>
+        </article>
+      </section>
+    </main>
+
+    <script src="/detail.js"></script>
+  </body>
+</html>

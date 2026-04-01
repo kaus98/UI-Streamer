@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>UI Streamer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-orb orb-1"></div>
+    <div class="bg-orb orb-2"></div>
+
+    <header class="topbar">
+      <div class="brand">UI<span>Streamer</span></div>
+      <div class="controls">
+        <input id="searchInput" type="search" placeholder="Search movies, series, genres..." />
+        <button id="refreshBtn" class="ghost">Refresh</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="hero" id="heroSection">
+        <div>
+          <p class="eyebrow">Continue watching</p>
+          <h1 id="heroTitle">Your local cinema, instantly.</h1>
+          <p id="heroMeta" class="hero-meta">Add a folder path to begin.</p>
+          <div class="hero-actions">
+            <button id="playNextBtn">Play Next</button>
+            <button id="openLibraryBtn" class="ghost">Jump to Library</button>
+          </div>
+        </div>
+        <div class="hero-poster" id="heroPoster"></div>
+      </section>
+
+      <section class="add-panel">
+        <h2>Add Local Media Path</h2>
+        <p class="helper">
+          Use an absolute folder path (example: <code>C:\\Movies</code>) to scan and add videos to server library.
+        </p>
+        <div class="path-row">
+          <input id="pathInput" type="text" placeholder="C:\\Your\\Media\\Folder" />
+          <button id="addPathBtn">Add Path</button>
+        </div>
+        <div class="upload-row">
+          <input id="folderUpload" type="file" webkitdirectory directory multiple />
+          <button id="uploadBtn" class="ghost">Upload Folder</button>
+        </div>
+        <p id="statusText" class="status"></p>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Movies</h2>
+          <p id="movieStats"></p>
+        </div>
+        <div id="movieRow" class="scroll-row"></div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Series</h2>
+          <p id="seriesStats"></p>
+        </div>
+        <div id="seriesRow" class="scroll-row"></div>
+      </section>
+
+      <section id="reviewSection">
+        <div class="section-head">
+          <h2>Now Showing</h2>
+          <p class="meta">Click a poster to jump to the detail player page.</p>
+        </div>
+        <p class="helper">Use the search input to filter genres, watched progress, or seasons before you dive in.</p>
+      </section>
+    </main>
+
+    <template id="cardTemplate">
+      <article class="card">
+        <div class="thumb"></div>
+        <div class="card-body">
+          <h3></h3>
+          <p class="meta"></p>
+          <div class="progress-line"><span></span></div>
+          <div class="card-actions">
+            <button class="play">Play</button>
+            <button class="details ghost">Details</button>
+            <button class="refresh ghost">Update IMDb</button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
