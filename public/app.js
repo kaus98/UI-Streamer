@@ -6,6 +6,8 @@ const state = {
   nextUp: null,
 };
 
+let activeFolder = localStorage.getItem("ui-streamer-folder") || null;
+
 const els = {
   searchInput: document.getElementById("searchInput"),
   refreshBtn: document.getElementById("refreshBtn"),
@@ -23,6 +25,12 @@ const els = {
   heroPoster: document.getElementById("heroPoster"),
   playNextBtn: document.getElementById("playNextBtn"),
   openLibraryBtn: document.getElementById("openLibraryBtn"),
+  folderLabel: document.getElementById("folderLabel"),
+  topbarFolder: document.getElementById("topbarFolder"),
+  openFolderBtn: document.getElementById("openFolderBtn"),
+  openAddPathBtn: document.getElementById("openAddPathBtn"),
+  addPathModal: document.getElementById("addPathModal"),
+  closeAddModalBtn: document.getElementById("closeAddModalBtn"),
   cardTemplate: document.getElementById("cardTemplate"),
 };
 
@@ -64,6 +72,17 @@ async function uploadFolder() {
     await loadLibrary(els.searchInput.value.trim());
   } catch (error) {
     els.statusText.textContent = error.message;
+  }
+}
+
+function toggleAddPathModal(show) {
+  if (show) {
+    els.addPathModal.classList.add("active");
+    els.addPathModal.removeAttribute("aria-hidden");
+    els.pathInput.focus();
+  } else {
+    els.addPathModal.classList.remove("active");
+    els.addPathModal.setAttribute("aria-hidden", "true");
   }
 }
 
@@ -149,6 +168,18 @@ async function loadLibrary(query = "") {
   renderLibrary();
 }
 
+function setFolderLabel(path) {
+  activeFolder = path || localStorage.getItem("ui-streamer-folder");
+  if (activeFolder) {
+    localStorage.setItem("ui-streamer-folder", activeFolder);
+    els.folderLabel.textContent = activeFolder;
+    els.topbarFolder.classList.remove("empty");
+  } else {
+    els.folderLabel.textContent = "No folder yet";
+    els.topbarFolder.classList.add("empty");
+  }
+}
+
 async function addPath() {
   const value = els.pathInput.value.trim();
   if (!value) {
@@ -165,6 +196,9 @@ async function addPath() {
     });
     els.statusText.textContent = `Added ${result.added} new files.`;
     await loadLibrary(els.searchInput.value.trim());
+    if (result.added) {
+      setFolderLabel(value);
+    }
   } catch (error) {
     els.statusText.textContent = error.message;
   }
@@ -199,6 +233,25 @@ function wireActions() {
   els.openLibraryBtn.addEventListener("click", () => {
     document.getElementById("movieRow").scrollIntoView({ behavior: "smooth", block: "start" });
   });
+
+  els.openFolderBtn.addEventListener("click", () => {
+    toggleAddPathModal(true);
+    els.statusText.textContent = "Enter a new folder path and click Add Path.";
+  });
+
+  els.openAddPathBtn.addEventListener("click", () => toggleAddPathModal(true));
+  els.closeAddModalBtn.addEventListener("click", () => toggleAddPathModal(false));
+  els.addPathModal.addEventListener("click", (event) => {
+    if (event.target === els.addPathModal) {
+      toggleAddPathModal(false);
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && els.addPathModal.classList.contains("active")) {
+      toggleAddPathModal(false);
+    }
+  });
 }
 
 async function init() {
@@ -209,6 +262,8 @@ async function init() {
   } catch (error) {
     els.statusText.textContent = error.message;
   }
+
+  setFolderLabel(activeFolder);
 }
 
 init();

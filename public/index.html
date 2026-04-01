@@ -22,6 +22,20 @@
         <input id="searchInput" type="search" placeholder="Search movies, series, genres..." />
         <button id="refreshBtn" class="ghost">Refresh</button>
       </div>
+      <button
+        id="openFolderBtn"
+        class="topbar-folder ghost icon-button"
+        aria-label="Switch library path"
+        type="button"
+      >
+        <span class="sr-only" id="folderRole">Library Folder</span>
+        <strong class="sr-only" id="folderLabel">No folder yet</strong>
+        <span class="icon-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation">
+            <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+        </span>
+      </button>
     </header>
 
     <main class="layout">
@@ -33,25 +47,10 @@
           <div class="hero-actions">
             <button id="playNextBtn">Play Next</button>
             <button id="openLibraryBtn" class="ghost">Jump to Library</button>
+            <button id="openAddPathBtn" class="ghost">Add Library</button>
           </div>
         </div>
         <div class="hero-poster" id="heroPoster"></div>
-      </section>
-
-      <section class="add-panel">
-        <h2>Add Local Media Path</h2>
-        <p class="helper">
-          Use an absolute folder path (example: <code>C:\\Movies</code>) to scan and add videos to server library.
-        </p>
-        <div class="path-row">
-          <input id="pathInput" type="text" placeholder="C:\\Your\\Media\\Folder" />
-          <button id="addPathBtn">Add Path</button>
-        </div>
-        <div class="upload-row">
-          <input id="folderUpload" type="file" webkitdirectory directory multiple />
-          <button id="uploadBtn" class="ghost">Upload Folder</button>
-        </div>
-        <p id="statusText" class="status"></p>
       </section>
 
       <section>
@@ -78,6 +77,27 @@
         <p class="helper">Use the search input to filter genres, watched progress, or seasons before you dive in.</p>
       </section>
     </main>
+
+    <div class="modal" id="addPathModal" aria-hidden="true">
+      <div class="modal-content">
+        <button class="close-modal" id="closeAddModalBtn">×</button>
+        <div class="modal-body">
+          <h2>Add Local Media Library</h2>
+          <p class="helper">
+            Use an absolute folder path (example: <code>C:\\Movies</code>) or upload snippets of local media to seed the library.
+          </p>
+          <div class="path-row">
+            <input id="pathInput" type="text" placeholder="C:\\Your\\Media\\Folder" />
+            <button id="addPathBtn">Add Path</button>
+          </div>
+          <div class="upload-row">
+            <input id="folderUpload" type="file" webkitdirectory directory multiple />
+            <button id="uploadBtn" class="ghost">Upload Folder</button>
+          </div>
+          <p id="statusText" class="status"></p>
+        </div>
+      </div>
+    </div>
 
     <template id="cardTemplate">
       <article class="card">
