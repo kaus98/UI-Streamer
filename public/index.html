@@ -82,19 +82,41 @@
       <div class="modal-content">
         <button class="close-modal" id="closeAddModalBtn">×</button>
         <div class="modal-body">
-          <h2>Add Local Media Library</h2>
-          <p class="helper">
-            Use an absolute folder path (example: <code>C:\\Movies</code>) or upload snippets of local media to seed the library.
-          </p>
-          <div class="path-row">
-            <input id="pathInput" type="text" placeholder="C:\\Your\\Media\\Folder" />
-            <button id="addPathBtn">Add Path</button>
+          <header class="modal-head">
+            <p class="eyebrow">Library setup</p>
+            <h2>Add Local Media Library</h2>
+            <p class="helper">
+              Point to a media folder or upload a sample to build a beautiful home cinema curated from your collection.
+            </p>
+          </header>
+          <div class="add-grid">
+            <article class="add-card path-card">
+              <div class="card-header">
+                <div>
+                  <p class="card-eyebrow">Preferred</p>
+                  <h3>Scan folder</h3>
+                </div>
+                <span class="card-icon" aria-hidden="true">⌁</span>
+              </div>
+              <p class="card-copy">Add a folder path pointing at your movies or shows for a fast catalog scan.</p>
+              <label class="field-label" for="pathInput">Folder path</label>
+              <input id="pathInput" type="text" placeholder="C:\Your\Media\Folder" />
+              <button id="addPathBtn" class="primary">Add Library</button>
+            </article>
+            <article class="add-card upload-card">
+              <div class="card-header">
+                <div>
+                  <p class="card-eyebrow">Quick add</p>
+                  <h3>Upload files</h3>
+                </div>
+                <span class="card-icon" aria-hidden="true">⇪</span>
+              </div>
+              <p class="card-copy">Drag-and-drop or select files to upload a preview set of local media.</p>
+              <input id="folderUpload" type="file" webkitdirectory directory multiple />
+              <button id="uploadBtn" class="ghost">Upload Folder</button>
+            </article>
           </div>
-          <div class="upload-row">
-            <input id="folderUpload" type="file" webkitdirectory directory multiple />
-            <button id="uploadBtn" class="ghost">Upload Folder</button>
-          </div>
-          <p id="statusText" class="status"></p>
+          <p id="statusText" class="status">&nbsp;</p>
         </div>
       </div>
     </div>
