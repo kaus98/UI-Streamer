@@ -31,6 +31,7 @@ const els = {
   openAddPathBtn: document.getElementById("openAddPathBtn"),
   addPathModal: document.getElementById("addPathModal"),
   closeAddModalBtn: document.getElementById("closeAddModalBtn"),
+  actionLog: document.getElementById("actionLog"),
   cardTemplate: document.getElementById("cardTemplate"),
 };
 
@@ -69,9 +70,11 @@ async function uploadFolder() {
     }
 
     els.statusText.textContent = `Uploaded and added ${data.added} files.`;
+    logAction(`Uploaded folder -> added ${data.added} files.`, data.items?.map((item) => item.fileName));
     await loadLibrary(els.searchInput.value.trim());
   } catch (error) {
     els.statusText.textContent = error.message;
+    logAction(`Upload failed: ${error.message}`);
   }
 }
 
@@ -155,6 +158,11 @@ function renderLibrary() {
   }
 }
 
+function renderStats(summary = {}) {
+  els.movieStats.textContent = `${summary.movies ?? 0} movies`;
+  els.seriesStats.textContent = `${summary.series ?? 0} series`;
+}
+
 async function loadLibrary(query = "") {
   const data = await fetchJson(`/api/library?q=${encodeURIComponent(query)}`);
   state.items = data.items;
@@ -195,12 +203,35 @@ async function addPath() {
       body: JSON.stringify({ path: value }),
     });
     els.statusText.textContent = `Added ${result.added} new files.`;
+    logAction(`Path scan ${value} -> ${result.added} files added.`, result.items?.map((item) => item.fileName));
     await loadLibrary(els.searchInput.value.trim());
     if (result.added) {
       setFolderLabel(value);
     }
   } catch (error) {
     els.statusText.textContent = error.message;
+    logAction(`Path scan failed: ${error.message}`);
+  }
+}
+
+function logAction(message) {
+  if (!els.actionLog) return;
+  const entry = document.createElement("li");
+  const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  entry.textContent = `[${time}] ${message}`;
+  els.actionLog.prepend(entry);
+  if (details) {
+    const detailList = document.createElement("ul");
+    details.forEach((detail) => {
+      const detailItem = document.createElement("li");
+      detailItem.textContent = detail;
+      detailList.appendChild(detailItem);
+    });
+    els.actionLog.prepend(detailList);
+  }
+  const maxEntries = 5;
+  while (els.actionLog.children.length > maxEntries) {
+    els.actionLog.removeChild(els.actionLog.lastChild);
   }
 }
 
