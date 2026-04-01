@@ -31,6 +31,27 @@ const upload = multer({
   }),
 });
 
+app.delete("/api/library/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const data = await readLibrary();
+    const index = data.items.findIndex((x) => x.id === id);
+    if (index === -1) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const [removed] = data.items.splice(index, 1);
+    if (data.progress[id]) {
+      delete data.progress[id];
+    }
+
+    await writeLibrary(data);
+    res.json({ removed });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to remove item", detail: error.message });
+  }
+});
+
 async function ensureStorage() {
   await fsp.mkdir(DATA_DIR, { recursive: true });
   await fsp.mkdir(UPLOADS_DIR, { recursive: true });
@@ -195,6 +216,15 @@ function pickReviewText($reviewNode) {
   return $reviewNode.find("div.text.show-more__control").first().text().trim();
 }
 
+async function fetchImdbPage(url) {
+  try {
+    return await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 });
+  } catch (error) {
+    const proxyUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, "")}`;
+    return await axios.get(proxyUrl, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
+  }
+}
+
 async function scrapeImdbMeta(title, year) {
   const key = makeCacheKey(title, year);
   const cache = await readImdbCache();
@@ -205,14 +235,11 @@ async function scrapeImdbMeta(title, year) {
   const query = `${title} ${year || ""}`.trim();
   const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(query)}&s=tt&ttype=ft`;
 
-  const searchResponse = await axios.get(searchUrl, {
-    headers: { "User-Agent": "Mozilla/5.0" },
-    timeout: 10000,
-  });
-
+  const searchResponse = await fetchImdbPage(searchUrl);
   const $search = cheerio.load(searchResponse.data);
   const firstResultHref =
     $search("a.ipc-metadata-list-summary-item__t").first().attr("href") ||
+    $search("a[data-testid='title-result']").first().attr("href") ||
     $search("a[href^='/title/tt']").first().attr("href");
 
   if (!firstResultHref) {
@@ -224,8 +251,8 @@ async function scrapeImdbMeta(title, year) {
   const reviewsUrl = `${imdbUrl}reviews`;
 
   const [titleRes, reviewsRes] = await Promise.all([
-    axios.get(imdbUrl, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 }),
-    axios.get(reviewsUrl, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 10000 }).catch(() => ({ data: "" })),
+    fetchImdbPage(imdbUrl),
+    fetchImdbPage(reviewsUrl).catch(() => ({ data: "" })),
   ]);
 
   const $title = cheerio.load(titleRes.data);
@@ -511,8 +538,10 @@ app.get("/api/stream/:id", async (req, res) => {
 
     if (range) {
       const [startRaw, endRaw] = range.replace(/bytes=/, "").split("-");
-      const start = parseInt(startRaw, 10);
-      const end = endRaw ? parseInt(endRaw, 10) : fileSize - 1;
+      let start = Number.isNaN(parseInt(startRaw, 10)) ? 0 : parseInt(startRaw, 10);
+      let end = Number.isNaN(parseInt(endRaw, 10)) ? fileSize - 1 : parseInt(endRaw, 10);
+      start = Math.min(Math.max(0, start), fileSize - 1);
+      end = Math.min(Math.max(start, end), fileSize - 1);
       const chunkSize = end - start + 1;
 
       res.writeHead(206, {

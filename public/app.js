@@ -141,8 +141,23 @@ function renderCard(item) {
   node.querySelector(".play").addEventListener("click", () => goToDetail(item.id, true));
   node.querySelector(".details").addEventListener("click", () => goToDetail(item.id));
   node.querySelector(".refresh").addEventListener("click", () => refreshMetadata(item.id));
+  node.querySelector(".delete").addEventListener("click", () => {
+    if (!confirm(`Remove "${item.title}" from the library?`)) return;
+    deleteItem(item.id);
+  });
 
   return node;
+}
+
+async function deleteItem(id) {
+  try {
+    const data = await fetchJson(`/api/library/${id}`, { method: "DELETE" });
+    logAction(`Removed ${data.removed.title} from library.`);
+    await loadLibrary(els.searchInput.value.trim());
+  } catch (error) {
+    els.statusText.textContent = error.message;
+    logAction(`Delete failed: ${error.message}`);
+  }
 }
 
 function renderLibrary() {
