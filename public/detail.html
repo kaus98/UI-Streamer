@@ -15,7 +15,11 @@
   <body class="detail-page">
     <header class="topbar">
       <div class="brand">UI<span>Streamer</span></div>
-      <a class="ghost" href="/">Back to library</a>
+      <a class="ghost icon-only" href="/" aria-label="Back to library">
+        <span class="icon-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+      </a>
     </header>
 
     <main class="detail-layout">
@@ -26,8 +30,12 @@
           <h1 id="detailTitle"></h1>
           <p class="meta" id="detailSubtitle"></p>
           <div class="detail-actions">
-            <button id="pagePlay">Play</button>
-            <button id="pageRefresh" class="ghost">Update IMDb</button>
+            <button id="pagePlay" class="icon-only" aria-label="Play" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span>
+            </button>
+            <button id="pageRefresh" class="ghost icon-only" aria-label="Update IMDb" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </button>
           </div>
           <p class="helper" id="detailPlot"></p>
         </div>
@@ -48,16 +56,30 @@
             <span id="duration">0:00</span>
           </div>
           <div class="action-row">
-            <button id="playerPlay" class="primary">Play</button>
-            <button id="playerPause" class="ghost">Pause</button>
-            <button id="detailRewind" class="ghost">-10s</button>
-            <button id="detailForward" class="ghost">+10s</button>
+            <button id="playerPlay" class="primary icon-only" aria-label="Play" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span>
+            </button>
+            <button id="playerPause" class="ghost icon-only" aria-label="Pause" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M9 5h2v14H9zm4 0h2v14h-2z" fill="currentColor"/></svg></span>
+            </button>
+            <button id="detailRewind" class="ghost icon-only" aria-label="Rewind 10 seconds" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M11 7L5 12l6 5V7zm8 0l-6 5 6 5V7z" fill="currentColor"/></svg></span>
+            </button>
+            <button id="detailForward" class="ghost icon-only" aria-label="Forward 10 seconds" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M13 7l6 5-6 5V7zM5 7l6 5-6 5V7z" fill="currentColor"/></svg></span>
+            </button>
             <div class="volume-group">
-              <label for="volumeBar">Volume</label>
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M5 10v4h3l4 4V6l-4 4H5z" fill="currentColor"/></svg></span>
+              <label class="sr-only" for="volumeBar">Volume</label>
               <input id="volumeBar" type="range" min="0" max="1" step="0.05" value="1" />
             </div>
-            <button id="playerFullscreen" class="ghost">Fullscreen</button>
-            <div class="quality-chip" id="qualityChip">Auto</div>
+            <button id="playerFullscreen" class="ghost icon-only" aria-label="Toggle fullscreen" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 21h-5v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            </button>
+            <div class="quality-chip icon-only" id="qualityChip" aria-label="Stream quality Auto" title="Quality: Auto">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M4 17h2l3-6 3 8 3-5 2 3h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+              <span id="qualityText" class="sr-only">Auto</span>
+            </div>
           </div>
         </div>
       </section>

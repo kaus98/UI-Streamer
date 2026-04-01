@@ -26,7 +26,7 @@ const els = {
   playNextBtn: document.getElementById("playNextBtn"),
   openLibraryBtn: document.getElementById("openLibraryBtn"),
   folderLabel: document.getElementById("folderLabel"),
-  topbarFolder: document.getElementById("topbarFolder"),
+  topbarFolder: document.getElementById("topbarFolder") || document.getElementById("openFolderBtn"),
   openFolderBtn: document.getElementById("openFolderBtn"),
   openAddPathBtn: document.getElementById("openAddPathBtn"),
   addPathModal: document.getElementById("addPathModal"),
@@ -196,10 +196,10 @@ function setFolderLabel(path) {
   if (activeFolder) {
     localStorage.setItem("ui-streamer-folder", activeFolder);
     els.folderLabel.textContent = activeFolder;
-    els.topbarFolder.classList.remove("empty");
+    els.topbarFolder?.classList.remove("empty");
   } else {
     els.folderLabel.textContent = "No folder yet";
-    els.topbarFolder.classList.add("empty");
+    els.topbarFolder?.classList.add("empty");
   }
 }
 
@@ -229,13 +229,13 @@ async function addPath() {
   }
 }
 
-function logAction(message) {
+function logAction(message, details = []) {
   if (!els.actionLog) return;
   const entry = document.createElement("li");
   const time = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   entry.textContent = `[${time}] ${message}`;
   els.actionLog.prepend(entry);
-  if (details) {
+  if (details.length) {
     const detailList = document.createElement("ul");
     details.forEach((detail) => {
       const detailItem = document.createElement("li");

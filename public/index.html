@@ -20,7 +20,13 @@
       <div class="brand">UI<span>Streamer</span></div>
       <div class="controls">
         <input id="searchInput" type="search" placeholder="Search movies, series, genres..." />
-        <button id="refreshBtn" class="ghost">Refresh</button>
+        <button id="refreshBtn" class="ghost icon-only" aria-label="Refresh library" type="button">
+          <span class="icon-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="presentation">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+        </button>
       </div>
       <button
         id="openFolderBtn"
@@ -45,9 +51,21 @@
           <h1 id="heroTitle">Your local cinema, instantly.</h1>
           <p id="heroMeta" class="hero-meta">Add a folder path to begin.</p>
           <div class="hero-actions">
-            <button id="playNextBtn">Play Next</button>
-            <button id="openLibraryBtn" class="ghost">Jump to Library</button>
-            <button id="openAddPathBtn" class="ghost">Add Library</button>
+            <button id="playNextBtn" class="icon-only" aria-label="Play next" type="button">
+              <span class="icon-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor" /></svg>
+              </span>
+            </button>
+            <button id="openLibraryBtn" class="ghost icon-only" aria-label="Jump to library" type="button">
+              <span class="icon-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+            </button>
+            <button id="openAddPathBtn" class="ghost icon-only" aria-label="Add library" type="button">
+              <span class="icon-mark" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="presentation"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </span>
+            </button>
           </div>
         </div>
         <div class="hero-poster" id="heroPoster"></div>
@@ -101,7 +119,11 @@
               <p class="card-copy">Add a folder path pointing at your movies or shows for a fast catalog scan.</p>
               <label class="field-label" for="pathInput">Folder path</label>
               <input id="pathInput" type="text" placeholder="C:\Your\Media\Folder" />
-              <button id="addPathBtn" class="primary">Add Library</button>
+              <button id="addPathBtn" class="primary icon-only" aria-label="Scan folder path" type="button">
+                <span class="icon-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="presentation"><path d="M3 17V7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+                </span>
+              </button>
             </article>
             <article class="add-card upload-card">
               <div class="card-header">
@@ -113,7 +135,11 @@
               </div>
               <p class="card-copy">Drag-and-drop or select files to upload a preview set of local media.</p>
               <input id="folderUpload" type="file" webkitdirectory directory multiple />
-              <button id="uploadBtn" class="ghost">Upload Folder</button>
+              <button id="uploadBtn" class="ghost icon-only" aria-label="Upload folder" type="button">
+                <span class="icon-mark" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" role="presentation"><path d="M12 16V4M7 9l5-5 5 5M4 20h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </span>
+              </button>
             </article>
           </div>
           <p id="statusText" class="status">&nbsp;</p>
@@ -136,10 +162,18 @@
           <p class="meta"></p>
           <div class="progress-line"><span></span></div>
           <div class="card-actions">
-            <button class="play">Play</button>
-            <button class="details ghost">Details</button>
-            <button class="refresh ghost">Update IMDb</button>
-            <button class="delete ghost" aria-label="Remove from library">Remove</button>
+            <button class="play icon-only" aria-label="Play" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span>
+            </button>
+            <button class="details ghost icon-only" aria-label="Details" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6M12 7h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            </button>
+            <button class="refresh ghost icon-only" aria-label="Refresh IMDb" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </button>
+            <button class="delete ghost icon-only" aria-label="Remove from library" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </button>
           </div>
         </div>
       </article>

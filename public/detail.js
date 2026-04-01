@@ -25,6 +25,7 @@ const els = {
   duration: document.getElementById("duration"),
   volumeBar: document.getElementById("volumeBar"),
   qualityChip: document.getElementById("qualityChip"),
+  qualityText: document.getElementById("qualityText"),
   focusTitle: document.getElementById("focusTitle"),
   focusMeta: document.getElementById("focusMeta"),
 };
@@ -150,7 +151,12 @@ function syncProgressUI() {
   els.progressBar.value = total ? (current / total) * 100 : 0;
   els.focusTitle.textContent = els.detailTitle.textContent;
   els.focusMeta.textContent = `${els.detailSubtitle.textContent} • ${Math.max(0, Math.floor((current / total) * 100) || 0)}%`;
-  els.qualityChip.textContent = total ? (total > 3600 ? "HD" : "SD") : "Auto";
+  const quality = total ? (total > 3600 ? "HD" : "SD") : "Auto";
+  els.qualityChip.setAttribute("aria-label", `Stream quality ${quality}`);
+  els.qualityChip.title = `Quality: ${quality}`;
+  if (els.qualityText) {
+    els.qualityText.textContent = quality;
+  }
 }
 
 function formatTime(seconds) {
