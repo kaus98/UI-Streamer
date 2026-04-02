@@ -37,6 +37,14 @@
               <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
             </button>
           </div>
+          <div id="manualImdbBox" class="manual-imdb-box" hidden>
+            <p class="helper">Couldn't fetch IMDb details automatically. Paste IMDb title URL manually.</p>
+            <div class="manual-imdb-row">
+              <input id="manualImdbInput" type="url" placeholder="https://www.imdb.com/title/tt..." />
+              <button id="manualImdbBtn" class="primary" type="button">Apply</button>
+            </div>
+            <p id="manualImdbStatus" class="helper"></p>
+          </div>
           <p class="helper" id="detailPlot"></p>
         </div>
       </section>
@@ -45,11 +53,14 @@
         <div class="video-surface" id="videoSurface">
           <video
             id="videoPlayer"
-            controls={false}
             playsInline
             crossOrigin="anonymous"
             preload="metadata"
           ></video>
+          <div class="player-loader" id="playerLoader" aria-live="polite" aria-hidden="true">
+            <span class="spinner" aria-hidden="true"></span>
+            <span>Buffering...</span>
+          </div>
           <div class="controls-panel" id="controlsPanel">
             <div class="controls-top">
               <div class="video-focus">
@@ -113,7 +124,6 @@
       </section>
     </main>
 
-    <script type="module" src="/vidstack-player.js"></script>
     <script src="/detail.js"></script>
   </body>
 </html>

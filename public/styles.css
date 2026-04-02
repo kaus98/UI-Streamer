@@ -821,6 +821,37 @@ p {
   background: #000;
 }
 
+.player-loader {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  color: #fff;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  background: rgba(0, 0, 0, 0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+  z-index: 3;
+}
+
+.player-loader.active {
+  opacity: 1;
+}
+
+.spinner {
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
 .detail-player video {
   width: 100%;
   border-radius: 16px;
@@ -877,6 +908,12 @@ p {
 .video-surface.is-playing.controls-hidden .controls-panel,
 .video-surface.is-playing.controls-hidden .video-focus {
   opacity: 0;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .video-surface:hover .controls-panel,

@@ -52,6 +52,69 @@ app.delete("/api/library/:id", async (req, res) => {
   }
 });
 
+app.post("/api/library/:id/manual-imdb", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const imdbUrlRaw = String(req.body.imdbUrl || "").trim();
+    if (!imdbUrlRaw) {
+      return res.status(400).json({ error: "IMDb URL is required" });
+    }
+
+    let parsed;
+    try {
+      parsed = new URL(imdbUrlRaw);
+    } catch {
+      return res.status(400).json({ error: "Invalid IMDb URL" });
+    }
+
+    if (!/imdb\.com$/i.test(parsed.hostname)) {
+      return res.status(400).json({ error: "Please provide a valid imdb.com URL" });
+    }
+
+    const titleMatch = parsed.pathname.match(/\/title\/(tt\d+)/i);
+    if (!titleMatch) {
+      return res.status(400).json({ error: "IMDb title URL must include /title/tt..." });
+    }
+
+    const titlePath = `/title/${titleMatch[1]}/`;
+    const imdbUrl = `https://www.imdb.com${titlePath}`;
+    const reviewsUrl = `${imdbUrl}reviews`;
+
+    const data = await readLibrary();
+    const item = data.items.find((x) => x.id === id);
+    if (!item) {
+      return res.status(404).json({ error: "Item not found" });
+    }
+
+    const [titleRes, reviewsRes] = await Promise.all([
+      fetchImdbPage(imdbUrl),
+      fetchImdbPage(reviewsUrl).catch(() => ({ data: "" })),
+    ]);
+
+    const meta = extractImdbMetaFromHtml({
+      imdbUrl,
+      titlePath,
+      titleHtml: titleRes.data,
+      reviewsHtml: reviewsRes.data,
+    });
+
+    if (!isMetaUseful(meta)) {
+      return res.status(404).json({ error: "Could not extract useful metadata from provided IMDb URL" });
+    }
+
+    item.metadata = { ...item.metadata, ...meta };
+
+    const cache = await readImdbCache();
+    cache[makeCacheKey(item.title, item.year)] = item.metadata;
+    await writeImdbCache(cache);
+
+    await writeLibrary(data);
+    res.json({ item });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to apply manual IMDb metadata", detail: error.message });
+  }
+});
+
 async function ensureStorage() {
   await fsp.mkdir(DATA_DIR, { recursive: true });
   await fsp.mkdir(UPLOADS_DIR, { recursive: true });
@@ -212,6 +275,131 @@ function safeJsonParseLD(value) {
   }
 }
 
+function parseImdbDuration(value) {
+  if (!value || typeof value !== "string") return null;
+  const match = value.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/i);
+  if (!match) return null;
+  const hours = Number(match[1] || 0);
+  const minutes = Number(match[2] || 0);
+  if (!hours && !minutes) return null;
+  if (hours && minutes) return `${hours}h ${minutes}m`;
+  if (hours) return `${hours}h`;
+  return `${minutes}m`;
+}
+
+function normalizeArray(value) {
+  if (!value) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function pickPrimaryLdObject($) {
+  const scripts = $("script[type='application/ld+json']")
+    .map((_, el) => safeJsonParseLD($(el).contents().text()))
+    .get()
+    .filter(Boolean);
+
+  const nodes = scripts.flatMap((node) => {
+    if (Array.isArray(node)) return node;
+    if (node && Array.isArray(node["@graph"])) return node["@graph"];
+    return [node];
+  });
+
+  return (
+    nodes.find((node) => {
+      const types = normalizeArray(node?.["@type"]).map((x) => String(x || "").toLowerCase());
+      return types.some((t) => ["movie", "tvseries", "tvepisode", "tvminiseries"].includes(t));
+    }) || null
+  );
+}
+
+function isMetaUseful(meta) {
+  if (!meta) return false;
+  return Boolean(meta.poster || meta.rating || meta.plot || (meta.genres && meta.genres.length));
+}
+
+function extractImdbMetaFromHtml({ imdbUrl, titlePath, titleHtml, reviewsHtml }) {
+  const $ = cheerio.load(titleHtml || "");
+  const $reviews = cheerio.load(reviewsHtml || "");
+
+  const ld = pickPrimaryLdObject($);
+  const ldImage = normalizeArray(ld?.image)[0];
+  const ldImageUrl = typeof ldImage === "string" ? ldImage : ldImage?.url;
+  const ldRating = Number(ld?.aggregateRating?.ratingValue);
+  const ldGenres = normalizeArray(ld?.genre)
+    .map((x) => String(x || "").trim())
+    .filter(Boolean);
+  const ldCast = normalizeArray(ld?.actor)
+    .map((actor) => (typeof actor === "string" ? actor : actor?.name))
+    .map((name) => String(name || "").trim())
+    .filter(Boolean);
+
+  const posterFallback =
+    $(".ipc-media img.ipc-image").first().attr("src") ||
+    $("img.ipc-image").first().attr("src") ||
+    $(".poster img").first().attr("src") ||
+    "";
+
+  const poster = (ldImageUrl || posterFallback || "").trim() || null;
+  const ratingText =
+    $("span[data-testid='hero-rating-bar__aggregate-rating__score'] span").first().text() ||
+    $("span[data-testid='rating-score--score']").first().text() ||
+    "";
+  const ratingFromText = parseFloat(String(ratingText).replace(/[^\d.]/g, ""));
+
+  const runtimeFromLd = parseImdbDuration(ld?.duration);
+  const runtimeFallback =
+    $("li[data-testid='title-techspec_runtime'] .ipc-metadata-list-item__list-content-item").first().text() ||
+    $("li[data-testid='title-techspec_runtime']").first().text() ||
+    "";
+
+  return {
+    source: imdbUrl,
+    imdbId: titlePath.replace(/^\/title\//, "").replace(/\/$/, ""),
+    imdbUrl,
+    poster,
+    rating: Number.isFinite(ldRating) ? ldRating : Number.isFinite(ratingFromText) ? ratingFromText : null,
+    genres: (
+      ldGenres.length
+        ? ldGenres
+        : $("a[href*='/search/title/?genres='] span, li[data-testid='storyline-genres'] a")
+            .map((_, el) => $(el).text())
+            .get()
+    )
+      .map((x) => String(x || "").trim())
+      .filter(Boolean)
+      .slice(0, 5),
+    plot: (
+      ld?.description ||
+      $("span[data-testid='plot-xl']").first().text() ||
+      $("span[data-testid='plot-xs_to_m']").first().text() ||
+      $("meta[name='description']").attr("content") ||
+      ""
+    ).trim(),
+    runtime: (runtimeFromLd || runtimeFallback || "").trim() || null,
+    cast: (
+      ldCast.length
+        ? ldCast
+        : $("[data-testid='title-cast-item'] a[data-testid='title-cast-item__actor']")
+            .map((_, el) => $(el).text())
+            .get()
+    )
+      .map((x) => String(x || "").trim())
+      .filter(Boolean)
+      .slice(0, 8),
+    reviews: $reviews(".review-container")
+      .map((_, el) => {
+        const $r = $reviews(el);
+        const author = $r.find("a.display-name-link").first().text().trim();
+        const rating = $r.find(".lister-item-header span.ipl-rating-star").first().text().trim();
+        const text = pickReviewText($r);
+        return text ? { author, rating, text } : null;
+      })
+      .get()
+      .filter(Boolean)
+      .slice(0, 3),
+  };
+}
+
 function pickReviewText($reviewNode) {
   const body = $reviewNode.find(".ipc-html-content-inner-div").first().text().trim();
   if (body) return body;
@@ -230,7 +418,7 @@ async function fetchImdbPage(url) {
 async function scrapeImdbMeta(title, year) {
   const key = makeCacheKey(title, year);
   const cache = await readImdbCache();
-  if (cache[key]) {
+  if (isMetaUseful(cache[key])) {
     return cache[key];
   }
 
@@ -243,6 +431,7 @@ async function scrapeImdbMeta(title, year) {
     const firstResultHref =
       $search("a.ipc-metadata-list-summary-item__t").first().attr("href") ||
       $search("a[data-testid='title-result']").first().attr("href") ||
+      $search("li.find-result a").first().attr("href") ||
       $search("a[href^='/title/tt']").first().attr("href");
 
     if (!firstResultHref) {
@@ -259,34 +448,19 @@ async function scrapeImdbMeta(title, year) {
       fetchImdbPage(reviewsUrl).catch(() => ({ data: "" })),
     ]);
 
-    const $ = cheerio.load(titleRes.data);
-    const $reviews = cheerio.load(reviewsRes.data);
-
-    const meta = {
-      source: imdbUrl,
-      imdbId: titlePath.replace(/^\/title\//, "").replace(/\/$/, ""),
+    const meta = extractImdbMetaFromHtml({
       imdbUrl,
-      poster: ($("div.ipc-media img.ipc-image").attr("src") || "").split("@._")[0] + "@._V1_UX128_CR0,0,128,176_AL_.jpg",
-      rating: parseFloat($("span[data-testid='rating-score--score']").first().text()) || null,
-      genres: ($("div.ipc-chip-list__scroller a.chip-list__chip span span").map((_, el) => $(el).text()).get() || []).slice(0, 5),
-      plot: ($("span[data-testid='plot-xs_to_m']").first().text() || $("div.sc-16ede01-0 h4").next("span").first().text() || "").trim(),
-      runtime: ($("div.sc-16ede01-0 ul li[data-testid='title-techspec_runtime'] span").first().text() || "").trim(),
-      cast: ($("div.sc-16ede01-2[data-testid='title-cast'] a[data-testid='title-cast-item']").map((_, el) => $(el).text()).get() || []).slice(0, 8),
-      reviews: $reviews(".review-container").map((_, el) => {
-        const $r = $reviews(el);
-        const author = $r.find("a.display-name-link").first().text().trim();
-        const rating = $r.find(".lister-item-header span.ipl-rating-star").first().text().trim();
-        const text = pickReviewText($r);
-        return text ? { author, rating, text } : null;
-      }).get().filter(Boolean).slice(0, 3),
-    };
+      titlePath,
+      titleHtml: titleRes.data,
+      reviewsHtml: reviewsRes.data,
+    });
 
     cache[key] = meta;
     await writeImdbCache(cache);
     return meta;
   } catch (error) {
     console.error(`[IMDB] Scrape error for ${query}:`, error.message);
-    return null;
+    return cache[key] || null;
   }
 }
 
