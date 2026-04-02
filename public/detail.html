@@ -41,48 +41,57 @@
         </div>
       </section>
 
-      <section class="detail-player">
-        <div class="video-surface">
-          <video id="detailVideo" preload="metadata"></video>
-          <div class="video-focus" aria-hidden="true">
-            <p class="focus-title" id="focusTitle"></p>
-            <p class="focus-meta" id="focusMeta"></p>
+      <div class="player-wrap">
+        <div class="video-surface" id="videoSurface">
+          <video
+            id="videoPlayer"
+            controls={false}
+            playsInline
+            crossOrigin="anonymous"
+            preload="metadata"
+          ></video>
+          <div class="controls-panel" id="controlsPanel">
+            <div class="controls-top">
+              <div class="video-focus">
+                <h2 id="videoTitle"></h2>
+                <p id="videoMeta" class="focus-meta"></p>
+              </div>
+            </div>
+            <div class="controls-bottom">
+              <div class="progress-row">
+                <span class="time-display" id="currentTime">0:00</span>
+                <input type="range" class="progress-slider" id="progressSlider" min="0" max="100" value="0" step="0.1">
+                <span class="time-display" id="duration">0:00</span>
+              </div>
+              <div class="controls-row">
+                <div class="controls-left">
+                  <button class="play-pause-btn icon-only" id="playPauseBtn" aria-label="Play/Pause">
+                    <span class="icon-mark" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>
+                    </span>
+                  </button>
+                  <div class="volume-group">
+                    <button class="volume-btn icon-only" id="volumeBtn" aria-label="Volume">
+                      <span class="icon-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" role="presentation"><path d="M3 9v6h4l5 5V4L7 9z" fill="currentColor"/><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63z" fill="currentColor"/><path d="M19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 15.14 21 13.62 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71z" fill="currentColor"/></svg>
+                      </span>
+                    </button>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="1" value="1" step="0.1">
+                  </div>
+                </div>
+                <div class="controls-right">
+                  <span class="quality-chip" id="qualityChip">HD</span>
+                  <button class="icon-only" id="fullscreenBtn" aria-label="Fullscreen">
+                    <span class="icon-mark" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" role="presentation"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" fill="currentColor"/></svg>
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div class="controls-panel">
-          <div class="progress-row">
-            <span id="currentTime">0:00</span>
-            <input id="progressBar" type="range" min="0" max="100" value="0" step="0.1" />
-            <span id="duration">0:00</span>
-          </div>
-          <div class="action-row">
-            <button id="playerPlay" class="primary icon-only" aria-label="Play" type="button">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span>
-            </button>
-            <button id="playerPause" class="ghost icon-only" aria-label="Pause" type="button">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M9 5h2v14H9zm4 0h2v14h-2z" fill="currentColor"/></svg></span>
-            </button>
-            <button id="detailRewind" class="ghost icon-only" aria-label="Rewind 10 seconds" type="button">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M11 7L5 12l6 5V7zm8 0l-6 5 6 5V7z" fill="currentColor"/></svg></span>
-            </button>
-            <button id="detailForward" class="ghost icon-only" aria-label="Forward 10 seconds" type="button">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M13 7l6 5-6 5V7zM5 7l6 5-6 5V7z" fill="currentColor"/></svg></span>
-            </button>
-            <div class="volume-group">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M5 10v4h3l4 4V6l-4 4H5z" fill="currentColor"/></svg></span>
-              <label class="sr-only" for="volumeBar">Volume</label>
-              <input id="volumeBar" type="range" min="0" max="1" step="0.05" value="1" />
-            </div>
-            <button id="playerFullscreen" class="ghost icon-only" aria-label="Toggle fullscreen" type="button">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M21 21h-5v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
-            </button>
-            <div class="quality-chip icon-only" id="qualityChip" aria-label="Stream quality Auto" title="Quality: Auto">
-              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M4 17h2l3-6 3 8 3-5 2 3h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-              <span id="qualityText" class="sr-only">Auto</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
 
       <section class="detail-meta-grid">
         <article>
@@ -104,6 +113,7 @@
       </section>
     </main>
 
+    <script type="module" src="/vidstack-player.js"></script>
     <script src="/detail.js"></script>
   </body>
 </html>

@@ -72,8 +72,8 @@ async function enrichLibraryItemWithImdb(item) {
   try {
     const imdbMeta = await scrapeImdbMeta(item.title, item.year);
     if (imdbMeta) item.metadata = imdbMeta;
-  } catch {
-    // Ignore scraping failures; item remains usable.
+  } catch (error) {
+    console.error(`[IMDB] Failed for ${item.title} (${item.year}):`, error.message);
   }
 }
 
@@ -171,6 +171,7 @@ function buildLibraryItem(filePath, rootPath) {
   const fileName = path.basename(filePath);
   const parsed = parseMediaName(fileName);
   const relativePath = path.relative(rootPath, filePath);
+  const parentDir = path.dirname(relativePath).split(path.sep)[0] || "";
 
   const baseId = `${parsed.inferredTitle}-${parsed.year || "na"}-${relativePath}`;
 
@@ -185,6 +186,7 @@ function buildLibraryItem(filePath, rootPath) {
     fileName,
     filePath,
     relativePath,
+    parentDir,
     fileSize: stats.size,
     addedAt: new Date().toISOString(),
     metadata: {
@@ -235,70 +237,57 @@ async function scrapeImdbMeta(title, year) {
   const query = `${title} ${year || ""}`.trim();
   const searchUrl = `https://www.imdb.com/find/?q=${encodeURIComponent(query)}&s=tt&ttype=ft`;
 
-  const searchResponse = await fetchImdbPage(searchUrl);
-  const $search = cheerio.load(searchResponse.data);
-  const firstResultHref =
-    $search("a.ipc-metadata-list-summary-item__t").first().attr("href") ||
-    $search("a[data-testid='title-result']").first().attr("href") ||
-    $search("a[href^='/title/tt']").first().attr("href");
+  try {
+    const searchResponse = await fetchImdbPage(searchUrl);
+    const $search = cheerio.load(searchResponse.data);
+    const firstResultHref =
+      $search("a.ipc-metadata-list-summary-item__t").first().attr("href") ||
+      $search("a[data-testid='title-result']").first().attr("href") ||
+      $search("a[href^='/title/tt']").first().attr("href");
 
-  if (!firstResultHref) {
+    if (!firstResultHref) {
+      console.warn(`[IMDB] No search result for: ${query}`);
+      return null;
+    }
+
+    const titlePath = firstResultHref.split("?")[0];
+    const imdbUrl = `https://www.imdb.com${titlePath}`;
+    const reviewsUrl = `${imdbUrl}reviews`;
+
+    const [titleRes, reviewsRes] = await Promise.all([
+      fetchImdbPage(imdbUrl),
+      fetchImdbPage(reviewsUrl).catch(() => ({ data: "" })),
+    ]);
+
+    const $ = cheerio.load(titleRes.data);
+    const $reviews = cheerio.load(reviewsRes.data);
+
+    const meta = {
+      source: imdbUrl,
+      imdbId: titlePath.replace(/^\/title\//, "").replace(/\/$/, ""),
+      imdbUrl,
+      poster: ($("div.ipc-media img.ipc-image").attr("src") || "").split("@._")[0] + "@._V1_UX128_CR0,0,128,176_AL_.jpg",
+      rating: parseFloat($("span[data-testid='rating-score--score']").first().text()) || null,
+      genres: ($("div.ipc-chip-list__scroller a.chip-list__chip span span").map((_, el) => $(el).text()).get() || []).slice(0, 5),
+      plot: ($("span[data-testid='plot-xs_to_m']").first().text() || $("div.sc-16ede01-0 h4").next("span").first().text() || "").trim(),
+      runtime: ($("div.sc-16ede01-0 ul li[data-testid='title-techspec_runtime'] span").first().text() || "").trim(),
+      cast: ($("div.sc-16ede01-2[data-testid='title-cast'] a[data-testid='title-cast-item']").map((_, el) => $(el).text()).get() || []).slice(0, 8),
+      reviews: $reviews(".review-container").map((_, el) => {
+        const $r = $reviews(el);
+        const author = $r.find("a.display-name-link").first().text().trim();
+        const rating = $r.find(".lister-item-header span.ipl-rating-star").first().text().trim();
+        const text = pickReviewText($r);
+        return text ? { author, rating, text } : null;
+      }).get().filter(Boolean).slice(0, 3),
+    };
+
+    cache[key] = meta;
+    await writeImdbCache(cache);
+    return meta;
+  } catch (error) {
+    console.error(`[IMDB] Scrape error for ${query}:`, error.message);
     return null;
   }
-
-  const titlePath = firstResultHref.split("?")[0];
-  const imdbUrl = `https://www.imdb.com${titlePath}`;
-  const reviewsUrl = `${imdbUrl}reviews`;
-
-  const [titleRes, reviewsRes] = await Promise.all([
-    fetchImdbPage(imdbUrl),
-    fetchImdbPage(reviewsUrl).catch(() => ({ data: "" })),
-  ]);
-
-  const $title = cheerio.load(titleRes.data);
-  const ldNode = $title("script[type='application/ld+json']").first().html();
-  const ld = ldNode ? safeJsonParseLD(ldNode) : null;
-
-  const imdbIdMatch = titlePath.match(/tt\d+/);
-  const imdbId = imdbIdMatch ? imdbIdMatch[0] : null;
-
-  const genres = ld?.genre ? (Array.isArray(ld.genre) ? ld.genre : [ld.genre]) : [];
-  const cast = Array.isArray(ld?.actor) ? ld.actor.map((a) => a?.name).filter(Boolean).slice(0, 8) : [];
-
-  const reviews = [];
-  if (reviewsRes.data) {
-    const $reviews = cheerio.load(reviewsRes.data);
-    $reviews(".review-container, .ipc-list-card--border-line").slice(0, 4).each((_, el) => {
-      const $node = $reviews(el);
-      const author = $node.find(".display-name-link a, .ipc-link").first().text().trim();
-      const content = pickReviewText($node);
-      const titleText = $node.find("a.title, h3").first().text().trim();
-      if (content) {
-        reviews.push({
-          author: author || "IMDb user",
-          title: titleText || "Review",
-          content,
-        });
-      }
-    });
-  }
-
-  const meta = {
-    source: "imdb",
-    imdbId,
-    imdbUrl,
-    poster: ld?.image || null,
-    rating: ld?.aggregateRating?.ratingValue || null,
-    genres,
-    plot: ld?.description || null,
-    runtime: ld?.duration || null,
-    cast,
-    reviews,
-  };
-
-  cache[key] = meta;
-  await writeImdbCache(cache);
-  return meta;
 }
 
 function getLastWatched(data) {
@@ -353,8 +342,28 @@ app.get("/api/library", async (req, res) => {
     const lastWatched = getLastWatched(data);
     const nextUp = computeNextUp(data);
 
+    const grouped = {};
+    for (const item of items) {
+      const key = item.parentDir || "_root";
+      if (!grouped[key]) grouped[key] = { type: "folder", name: key, items: [] };
+      grouped[key].items.push(item);
+    }
+
+    const folders = Object.values(grouped).map(folder => ({
+      id: toId(`folder-${folder.name}`),
+      title: folder.name,
+      type: "folder",
+      items: folder.items,
+      summary: {
+        total: folder.items.length,
+        movies: folder.items.filter(i => i.type === "movie").length,
+        series: folder.items.filter(i => i.type === "series").length,
+      }
+    }));
+
     res.json({
       items,
+      folders,
       progress: data.progress,
       summary: {
         total: items.length,
@@ -475,6 +484,48 @@ app.get("/api/library/:id", async (req, res) => {
     res.json({ item, progress });
   } catch (error) {
     res.status(500).json({ error: "Failed to retrieve item", detail: error.message });
+  }
+});
+
+app.get("/api/library/folder/:folderId", async (req, res) => {
+  try {
+    const { folderId } = req.params;
+    const data = await readLibrary();
+    const folderName = folderId.replace(/^folder-/, "");
+    const items = data.items.filter(item => (item.parentDir || "_root") === folderName);
+
+    const groupedBySeries = {};
+    for (const item of items) {
+      const key = item.type === "series" ? item.title : item.id;
+      if (!groupedBySeries[key]) {
+        groupedBySeries[key] = {
+          id: item.type === "series" ? toId(`series-${item.title}`) : item.id,
+          title: item.type === "series" ? item.title : item.title,
+          type: item.type,
+          year: item.year,
+          metadata: item.metadata,
+          episodes: [],
+        };
+      }
+      if (item.type === "series") {
+        groupedBySeries[key].episodes.push(item);
+      } else {
+        groupedBySeries[key].movie = item;
+      }
+    }
+
+    const result = Object.values(groupedBySeries).map(entry => ({
+      id: entry.id,
+      title: entry.title,
+      type: entry.type,
+      year: entry.year,
+      metadata: entry.metadata,
+      ...(entry.type === "series" ? { episodes: entry.episodes.sort((a, b) => (a.season || 0) - (b.season || 0) || (a.episode || 0) - (b.episode || 0)) } : { movie: entry.movie }),
+    }));
+
+    res.json({ items: result });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load folder contents", detail: error.message });
   }
 });
 

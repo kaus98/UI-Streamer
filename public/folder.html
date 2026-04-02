@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UI Streamer – Folder</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">UI<span>Streamer</span></div>
+      <a class="ghost icon-only" href="/" aria-label="Back to library">
+        <span class="icon-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" role="presentation"><path d="M15 18l-6-6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+      </a>
+    </header>
+
+    <main class="layout">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Browsing folder</p>
+          <h1 id="folderTitle">Loading...</h1>
+          <p id="folderMeta" class="hero-meta"></p>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2>Contents</h2>
+          <p id="folderStats"></p>
+        </div>
+        <div class="scroll-row" id="folderContents"></div>
+      </section>
+    </main>
+
+    <template id="cardTemplate">
+      <article class="card">
+        <div class="thumb"></div>
+        <div class="card-body">
+          <h3></h3>
+          <p class="meta"></p>
+          <div class="progress-line"><span></span></div>
+          <div class="card-actions">
+            <button class="play icon-only" aria-label="Play" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg></span>
+            </button>
+            <button class="details ghost icon-only" aria-label="Details" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6M12 7h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
+            </button>
+            <button class="refresh ghost icon-only" aria-label="Refresh IMDb" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </button>
+            <button class="delete ghost icon-only" aria-label="Remove from library" type="button">
+              <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M3 6h18M8 6V4h8v2M7 6l1 14h8l1-14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+            </button>
+          </div>
+        </div>
+      </article>
+    </template>
+
+    <script src="/folder.js"></script>
+  </body>
+</html>

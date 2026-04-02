@@ -1,9 +1,13 @@
 const state = {
   items: [],
   progress: {},
+  nextUp: null,
+  folders: [],
   movies: [],
   series: [],
-  nextUp: null,
+  activeFolder: null,
+  carouselIndex: 0,
+  carouselItems: [],
 };
 
 let activeFolder = localStorage.getItem("ui-streamer-folder") || null;
@@ -18,6 +22,8 @@ const els = {
   statusText: document.getElementById("statusText"),
   movieRow: document.getElementById("movieRow"),
   seriesRow: document.getElementById("seriesRow"),
+  folderRow: document.getElementById("folderRow"),
+  myListRow: document.getElementById("myListRow"),
   movieStats: document.getElementById("movieStats"),
   seriesStats: document.getElementById("seriesStats"),
   heroTitle: document.getElementById("heroTitle"),
@@ -33,6 +39,9 @@ const els = {
   closeAddModalBtn: document.getElementById("closeAddModalBtn"),
   actionLog: document.getElementById("actionLog"),
   cardTemplate: document.getElementById("cardTemplate"),
+  heroCarousel: document.getElementById("heroCarousel"),
+  carouselContainer: document.getElementById("carouselContainer"),
+  carouselNav: document.getElementById("carouselNav"),
 };
 
 async function fetchJson(url, options = {}) {
@@ -149,6 +158,113 @@ function renderCard(item) {
   return node;
 }
 
+function renderFolderCard(folder) {
+  const node = els.cardTemplate.content.firstElementChild.cloneNode(true);
+  node.classList.add("folder-card");
+  node.dataset.folderId = folder.id;
+
+  const thumb = node.querySelector(".thumb");
+  thumb.style.backgroundImage = "none";
+  thumb.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:2.5rem;opacity:0.6;">
+    <svg viewBox="0 0 24 24" role="presentation" style="width:3rem;height:3rem"><path d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8zm-1 1h8l3 3v8H4V5h5z" fill="currentColor"/></svg>
+  </div>`;
+
+  node.querySelector("h3").textContent = folder.title || "Root";
+  node.querySelector(".meta").textContent = `${folder.summary.movies} movies • ${folder.summary.series} series`;
+
+  node.querySelector(".progress-line span").style.width = "0%";
+
+  const actions = node.querySelector(".card-actions");
+  actions.innerHTML = `
+    <button class="browse primary icon-only" aria-label="Browse folder" type="button">
+      <span class="icon-mark" aria-hidden="true"><svg viewBox="0 0 24 24" role="presentation"><path d="M9 3l5 5-5 5M3 12h12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    </button>
+  `;
+  actions.querySelector(".browse").addEventListener("click", () => {
+    window.location.href = `/folder.html?id=${folder.id}`;
+  });
+
+  return node;
+}
+
+function renderCarousel() {
+  if (!state.carouselItems.length) {
+    els.heroCarousel.style.display = "none";
+    return;
+  }
+
+  els.heroCarousel.style.display = "block";
+  els.carouselContainer.innerHTML = "";
+  els.carouselNav.innerHTML = "";
+
+  state.carouselItems.forEach((item, index) => {
+    const slide = document.createElement("div");
+    slide.className = `carousel-slide ${index === state.carouselIndex ? "active" : ""}`;
+    
+    slide.innerHTML = `
+      <div class="carousel-slide-backdrop" style="${item.metadata.poster ? `background-image: url('${item.metadata.poster}')` : ""}"></div>
+      <div class="carousel-content">
+        <h2 class="carousel-title">${item.title}</h2>
+        <p class="carousel-meta">${[item.type, item.year || "Year n/a"].join(" • ")}</p>
+        <p class="carousel-description">${item.metadata.plot || "No description available."}</p>
+        <div class="carousel-actions">
+          <button class="primary icon-only" aria-label="Play" type="button">
+            <span class="icon-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="presentation"><path d="M8 5l11 7-11 7z" fill="currentColor"/></svg>
+            </span>
+            <span>Play</span>
+          </button>
+          <button class="ghost icon-only" aria-label="More Info" type="button">
+            <span class="icon-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="presentation"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 10v6M12 7h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </span>
+            <span>More Info</span>
+          </button>
+        </div>
+      </div>
+      <div class="carousel-poster" style="${item.metadata.poster ? `background-image: url('${item.metadata.poster}')` : ""}"></div>
+    `;
+
+    slide.querySelector(".primary").addEventListener("click", () => {
+      window.location.href = `/detail.html?id=${item.id}&autoplay=1`;
+    });
+    slide.querySelector(".ghost").addEventListener("click", () => {
+      window.location.href = `/detail.html?id=${item.id}`;
+    });
+
+    els.carouselContainer.appendChild(slide);
+
+    const dot = document.createElement("button");
+    dot.className = `carousel-dot ${index === state.carouselIndex ? "active" : ""}`;
+    dot.setAttribute("aria-label", `Go to slide ${index + 1}`);
+    dot.addEventListener("click", () => setCarouselSlide(index));
+    els.carouselNav.appendChild(dot);
+  });
+}
+
+function setCarouselSlide(index) {
+  state.carouselIndex = index;
+  const slides = els.carouselContainer.querySelectorAll(".carousel-slide");
+  const dots = els.carouselNav.querySelectorAll(".carousel-dot");
+  
+  slides.forEach((slide, i) => {
+    slide.classList.toggle("active", i === index);
+  });
+  
+  dots.forEach((dot, i) => {
+    dot.classList.toggle("active", i === index);
+  });
+}
+
+function startCarouselAutoplay() {
+  setInterval(() => {
+    if (state.carouselItems.length > 1) {
+      const nextIndex = (state.carouselIndex + 1) % state.carouselItems.length;
+      setCarouselSlide(nextIndex);
+    }
+  }, 5000);
+}
+
 async function deleteItem(id) {
   try {
     const data = await fetchJson(`/api/library/${id}`, { method: "DELETE" });
@@ -163,6 +279,14 @@ async function deleteItem(id) {
 function renderLibrary() {
   els.movieRow.innerHTML = "";
   els.seriesRow.innerHTML = "";
+  els.myListRow.innerHTML = "";
+
+  if (state.folders && els.folderRow) {
+    els.folderRow.innerHTML = "";
+    for (const folder of state.folders) {
+      els.folderRow.appendChild(renderFolderCard(folder));
+    }
+  }
 
   for (const item of state.movies) {
     els.movieRow.appendChild(renderCard(item));
@@ -171,6 +295,21 @@ function renderLibrary() {
   for (const item of state.series) {
     els.seriesRow.appendChild(renderCard(item));
   }
+
+  const recentlyWatched = state.items
+    .filter(item => state.progress[item.id] && state.progress[item.id].percent > 0)
+    .sort((a, b) => new Date(state.progress[b.id].updatedAt) - new Date(state.progress[a.id].updatedAt))
+    .slice(0, 5);
+
+  for (const item of recentlyWatched) {
+    els.myListRow.appendChild(renderCard(item));
+  }
+
+  if (!recentlyWatched.length) {
+    els.myListRow.innerHTML = "<p class='helper'>No recently watched items.</p>";
+  }
+
+  renderCarousel();
 }
 
 function renderStats(summary = {}) {
@@ -183,12 +322,19 @@ async function loadLibrary(query = "") {
   state.items = data.items;
   state.progress = data.progress;
   state.nextUp = data.nextUp;
-  state.movies = data.items.filter((i) => i.type === "movie");
-  state.series = data.items.filter((i) => i.type === "series");
+  state.folders = data.folders;
+
+  state.movies = state.items.filter((i) => i.type === "movie");
+  state.series = state.items.filter((i) => i.type === "series");
+
+  state.carouselItems = state.items
+    .filter(item => item.metadata.poster)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 5);
 
   renderStats(data.summary);
-  renderHero(data);
   renderLibrary();
+  startCarouselAutoplay();
 }
 
 function setFolderLabel(path) {
@@ -270,31 +416,43 @@ function wireActions() {
     });
   });
 
-  els.playNextBtn.addEventListener("click", () => {
-    if (state.nextUp?.id) {
-      goToDetail(state.nextUp.id, true);
-    }
-  });
+  if (els.playNextBtn) {
+    els.playNextBtn.addEventListener("click", () => {
+      if (state.nextUp?.id) {
+        goToDetail(state.nextUp.id, true);
+      }
+    });
+  }
 
-  els.openLibraryBtn.addEventListener("click", () => {
-    document.getElementById("movieRow").scrollIntoView({ behavior: "smooth", block: "start" });
-  });
+  if (els.openLibraryBtn) {
+    els.openLibraryBtn.addEventListener("click", () => {
+      document.getElementById("movieRow").scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
 
-  els.openFolderBtn.addEventListener("click", () => {
-    toggleAddPathModal(true);
-    els.statusText.textContent = "Enter a new folder path and click Add Path.";
-  });
+  if (els.openFolderBtn) {
+    els.openFolderBtn.addEventListener("click", () => {
+      toggleAddPathModal(true);
+      els.statusText.textContent = "Enter a new folder path and click Add Path.";
+    });
+  }
 
-  els.openAddPathBtn.addEventListener("click", () => toggleAddPathModal(true));
-  els.closeAddModalBtn.addEventListener("click", () => toggleAddPathModal(false));
-  els.addPathModal.addEventListener("click", (event) => {
-    if (event.target === els.addPathModal) {
-      toggleAddPathModal(false);
-    }
-  });
+  if (els.openAddPathBtn) {
+    els.openAddPathBtn.addEventListener("click", () => toggleAddPathModal(true));
+  }
+  if (els.closeAddModalBtn) {
+    els.closeAddModalBtn.addEventListener("click", () => toggleAddPathModal(false));
+  }
+  if (els.addPathModal) {
+    els.addPathModal.addEventListener("click", (event) => {
+      if (event.target === els.addPathModal) {
+        toggleAddPathModal(false);
+      }
+    });
+  }
 
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && els.addPathModal.classList.contains("active")) {
+    if (event.key === "Escape" && els.addPathModal?.classList.contains("active")) {
       toggleAddPathModal(false);
     }
   });
